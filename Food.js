@@ -8,12 +8,15 @@ import { Text,
   View,
   ScrollView,
   TextInput,
-  TouchableOpacity
+  TouchableOpacity,
+  ActivityIndicator,
+  ImageBackground
 } from 'react-native';
 var {height, width } = Dimensions.get('window');
 import Swiper from 'react-native-swiper';
 import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
+import moment from "moment";
 
 
 // import AsyncStorage
@@ -31,26 +34,36 @@ export default class App extends Component {
       dataAllFood:{},
       dataFood:[],
       dataBackup:[],
+      dataCart:"",
+      currentDate: new Date(),
       selectCatg:0,
-      textSearch:""
+      textSearch:"",
+      isLoading: true
       
 
     }
   }
 
+  static navigationOptions = {
+headerShown: false,
+};
+
   componentDidMount(){
-    const url = "http://tutofox.com/foodapp/api.json"
+    AsyncStorage.removeItem('cart')
+    
+    const url = "https://wepardo.com.ar/comercios.php"
     return fetch(url)
     .then((response) => response.json())
     .then((responseJson) => {
 
       this.setState({
-        isLoading: false,
+        
         dataBanner: responseJson.banner,
-        dataCategories: responseJson.categories,
+        dataCategories: responseJson.categorias,
         dataAllFood:responseJson,
-        dataFood:responseJson.food,
-        dataBackup:responseJson.food,
+        dataFood:responseJson.comercios,
+        dataBackup:responseJson.comercios,
+        isLoading: false
       });
 
     })
@@ -64,26 +77,68 @@ onChangeSearch(text){
     console.log(text)
     const data = this.state.dataBackup
     const newData = data.filter(function(item){
-        const itemData = item.name.toUpperCase()
+        const itemData = item.nombre.toUpperCase()
         const textData = text.toUpperCase()
         return itemData.indexOf(textData) > -1
     })
     console.log(newData.length)
+    if (newData.length >= 1) {
+      this.setState({
+        dataFood: newData,
+        textSearch: text,
+    })
+    } else {
+      const newData = data.filter(function(item){
+        const itemData = item.tags.toUpperCase()
+        const textData = text.toUpperCase()
+        return itemData.indexOf(textData) > -1
+    })
+   
     this.setState({
         dataFood: newData,
         textSearch: text,
     })
+    }
+    
+  }
+
+
+  comercioabierto(item){
+
+
+const hori = moment().format('HH:mm');
+const today = this.state.currentDate;
+const day = moment(today).format("dddd");
+if ((hori >= item.horaabre1 && hori <= item.horacierra1 && item.habilitado == 1 && day != item.descanso) || (hori >= item.horaabre2 && hori <= item.horacierra2 && item.habilitado == 1 && day != item.descanso)){
+this.props.navigation.navigate("Comercio",{"comercio":item})
+} else {
+  Alert.alert(
+      'Ups! Cerrado',
+       item.nombre + ' Abre de: '+ item.horario,
+      [
+
+     {text: 'Ver Catalogo', onPress: () => this.props.navigation.navigate("Deshabilitado",{"comercio":item})},
+      {text: 'Excelente!', onPress: () => console.log('OK Pressed')},
+      ],
+      { cancelable: true }
+    )
+     
+}
+
   }
 
   render() {
+    const { isLoading } = this.state;
+    
     return (
+      <View style={{ flex: 1,backgroundColor:"#f2f2f2" }}>
       <ScrollView>
-        <View style={{ flex: 1,backgroundColor:"#f2f2f2" }}>
+        
           <View style={{width: width, alignItems:'center'}} >
          <LinearGradient colors={['orange', 'white']} style={{ width:width, alignItems: 'center' }}>
           <View style={{height:3}} />
-              <Image style={{height:60,width:width/2,margin:15 }} resizeMode="contain" source={require("./image/foodapp.png")}  />
-              <Swiper style={{height:width/2}} autoplay={true} showsButtons={false} >
+              <Image style={{height:60,width:width/2,margin:3 }} resizeMode="contain" source={require("./image/foodapp.png")}  />
+              <Swiper style={{height:width/2}} key={this.state.dataBanner.length} autoplay={true} showsButtons={false} autoplayTimeout={5} showsPagination={false} >
                 {
                   this.state.dataBanner.map((itemmap)=>{
                     return(
@@ -94,11 +149,11 @@ onChangeSearch(text){
                   })
                 }
               </Swiper>
-   
+              
               
               <View style={{width:width,padding:8}}>
             <TextInput
-              placeholder="¿Que comemos hoy?"
+              placeholder="¿Que local buscas?"
               style={{ height: 40, borderColor: '#f2f2f2', borderRadius:10, backgroundColor:'white', borderWidth: 1, paddingHorizontal:20 }}
               onChangeText={(text) => this.onChangeSearch(text)}
               value={this.state.textSearch}
@@ -114,100 +169,82 @@ onChangeSearch(text){
               renderItem={({ item }) => this._renderItem(item)}
               keyExtractor = { (item,index) => index.toString() }
             />
+             {!isLoading ? 
+
+<View style={{ flex:1 , justifyContent: 'center', alignItems: 'center' }}>
             <FlatList
               //horizontal={true}
               data={this.state.dataFood}
-              numColumns={2}
               renderItem={({ item }) => this._renderItemFood(item)}
               keyExtractor = { (item,index) => index.toString() }
             />
+</View>
+            :
+           
+           <ActivityIndicator size="large" color="#0000ff" />
+        }
+        
+   
+
             <View style={{height:20}} />
+
           </View>
 
         </View>
-        </View>
+        
+           
       </ScrollView>
+      
+    
+
+</View>
+      
     );
   }
 
- onClickAddCart(data){
-
-   const itemcart = {
-     food: data,
-     quantity:  1,
-     price: data.price
-   }
-
-   AsyncStorage.getItem('cart').then((datacart)=>{
-       if (datacart !== null) {
-         // We have data!!
-         const cart = JSON.parse(datacart)
-         cart.push(itemcart)
-         AsyncStorage.setItem('cart',JSON.stringify(cart));
-       }
-       else{
-         const cart  = []
-         cart.push(itemcart)
-         AsyncStorage.setItem('cart',JSON.stringify(cart));
-       }
-       Alert.alert(
-      'Producto guardado!',
-      'Sigue comprando o dirigete al carrito. | #ChitaDelivery',
-      [
-     {text: 'Excelente!', onPress: () => console.log('OK Pressed')},
-      ],
-      { cancelable: false }
-    )
-     })
-     .catch((err)=>{
-       alert(err)
-     })
- }
-
+ 
 _renderItemFood(item){
     let catg = this.state.selectCatg
-    if(catg==0||catg==item.categorie)
+    if(catg==0||catg==item.categoria)
     {
       return(
-        <TouchableOpacity style={styles.divFood}>
-          <Image
-            style={styles.imageFood}
-            resizeMode="contain"
-            source={{uri:item.image}} />
-            <View style={{height:((width/2)-20)-90, backgroundColor:'transparent', width:((width/2)-20)-10}} />
-            <Text style={{fontWeight:'bold',fontSize:17,textAlign:'center'}}>
-              {item.name}
-            </Text>
-            <Text>#ChitaDelivery</Text>
-            <Text style={{fontSize:20,color:"green"}}>${item.price}</Text>
-         <TouchableOpacity
-            onPress={()=>this.onClickAddCart(item)}
-            style={{
-              width:(width/2)-40,
-              backgroundColor:'#33c37d',
-              flexDirection:'row',
-              alignItems:'center',
-              justifyContent:"center",
-              borderRadius:5,
-              padding:4
-            }}>
-            <Text style={{fontSize:18, color:"white", fontWeight:"bold"}}>Pedir</Text>
-            <View style={{width:10}} />
-            <Icon name="ios-add-circle" size={30} color={"white"} />
-          </TouchableOpacity>
-          </TouchableOpacity>
+
+      <TouchableOpacity onPress={()=>this.comercioabierto(item)}>
+
+      <ImageBackground imageStyle={{borderRadius:8}} resizeMode="cover" source={{uri:item.fondo}} style={{height:width/2, width: width-40, alignItems:'center', padding:10,
+    marginTop:10}}>
+
+    <View style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center',  backgroundColor:'black', opacity:0.5, borderRadius:8}}>
+   </View>
+   <View style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center'}}>
+   <Text style={{top:10,right:10, position:"absolute",fontSize:10, color:"white", fontWeight:"bold"}}>{item.horario}</Text>
+   
+   <Text style={{textTransform: 'uppercase',fontSize:25, color:"white", fontWeight:"bold",bottom:15, position:"absolute"}}>{item.nombre}</Text>
+   <Image
+          style={{top:10,left:5,position:"absolute",width:60,height:60,borderRadius:8}}
+          resizeMode="contain"
+          source={{uri : item.logo}} />
+   <Text style={{fontSize:10, color:"white",fontWeight:"bold",bottom:5, position:"absolute"}} numberOfLines={1}>{item.descripcion}</Text>
+
+   </View>
+  
+</ImageBackground>
+</TouchableOpacity>
+
+        
+
         )
     }
   }
  _renderItem(item){
     return(
-      <TouchableOpacity style={[styles.divCategorie,{backgroundColor:this.state.selectCatg==item.id?"#33c37d":item.color}]}
-      onPress={()=>this.setState({selectCatg:item.id})}>
+      <TouchableOpacity style={[styles.divCategorie,{backgroundColor:this.state.selectCatg==item.id?"#f8bd00":item.color}]}
+      onPress={()=>this.setState({selectCatg:this.state.selectCatg==item.id?"0":item.id})}>
         <Image
           style={{width:100,height:80}}
           resizeMode="contain"
-          source={{uri : item.image}} />
-        <Text style={{fontWeight:'bold',fontSize:22}}>{item.name}</Text>
+          source={{uri : item.imagen}} />
+        <Text style={{fontWeight:'bold',fontSize:22, textAlign:"center",color:"black"}} >{item.nombre}</Text>
      
       </TouchableOpacity>
     )
@@ -230,6 +267,7 @@ const styles = StyleSheet.create({
   titleCatg:{
     fontSize:30,
     fontWeight:'bold',
+    color:"black",
     textAlign:'center',
     marginBottom:10
   },
@@ -238,7 +276,8 @@ const styles = StyleSheet.create({
     height:((width/2)-20)-30,
     backgroundColor:'transparent',
     position:'absolute',
-    top:-45
+    borderRadius:8,
+    top:-30
   },
   divFood:{
     width:(width/2)-20,

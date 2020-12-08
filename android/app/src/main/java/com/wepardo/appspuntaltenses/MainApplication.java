@@ -1,4 +1,4 @@
-package com.pruebareact;
+package com.wepardo.appspuntaltenses;
 
 import android.app.Application;
 import android.content.Context;

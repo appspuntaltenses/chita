@@ -1,4 +1,4 @@
-package com.pruebareact;
+package com.wepardo.appspuntaltenses;
 
 import com.facebook.react.ReactActivity;
 
